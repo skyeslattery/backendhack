@@ -6,7 +6,7 @@ import json
 import os
 
 app = Flask(__name__)
-db_filename = "recover.db"
+db_filename = "foundit.db"
 
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///%s" % db_filename
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -23,6 +23,8 @@ def failure_response(message, code=404):
     return json.dumps({'error': message}), code
 
 @app.route("/")
+def base():
+    return "FoundIt"
 
 @app.route("/api/users/")
 def get_users():
@@ -31,7 +33,7 @@ def get_users():
     """
     users = [users.serialize() for users in User.query.all()]
 
-    return success_response({"courses": users})
+    return success_response({"users": users})
 
 @app.route("/api/posts/found/")
 def get_found():

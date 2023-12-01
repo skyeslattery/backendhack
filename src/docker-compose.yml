@@ -1,0 +1,7 @@
+version: "3"
+
+services:
+  demo:
+    image: skyeslattery/foundit
+    ports:
+      - "80:5000"

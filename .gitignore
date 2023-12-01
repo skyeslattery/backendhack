@@ -2,3 +2,5 @@ src/__pycache__
 src/instance
 *.DS_Store
 *.db
+src/.env
+src/venv
