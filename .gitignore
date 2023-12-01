@@ -1,4 +1,2 @@
-__pycache__
-instance
-* .db
-.DS_Store
+src/__pycache__
+src/instance
