@@ -71,11 +71,15 @@ def create_user():
     body = json.loads(request.data)
     netid=body.get('netid')
     name=body.get('name')
+    users = User.query.all()
 
     if netid is None:
         return failure_response("NetID not found", 400)
     if name is None:
         return failure_response("Name not found", 400)
+    for user in users:
+        if(user.netid==netid):
+            return success_response(user.serialize(), 201)
 
     new_user = User(netid=netid, name=name)
 
