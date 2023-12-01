@@ -3,6 +3,7 @@ from db import Post
 from db import User
 from flask import Flask, request
 import json
+from db import Asset
 import os
 
 app = Flask(__name__)
@@ -99,11 +100,20 @@ def create_post(user_id):
     body = json.loads(request.data)
     description = body.get("description")
     is_found = body.get("is_found")
+    image_data = body.get("image_data")
+
+    if image_data is None:
+        return failure_response("No base64 image found")
 
     if description is None:
         return failure_response("Please add description", 400)
+    
+    asset = Asset(image_data=image_data)
+    db.session.add(asset)
+    db.session.commit()
+    url = asset.serialize().get("url")
 
-    new_post = Post(description=description, is_found=is_found, user_id=user_id)
+    new_post = Post(description=description, is_found=is_found, user_id=user_id, image_url=url)
 
     db.session.add(new_post)
     db.session.commit()
@@ -131,6 +141,24 @@ def delete_post(post_id):
     db.session.delete(post)
     db.session.commit()
     return success_response(post.serialize())
+
+@app.route("/api/upload/", methods=["POST"])
+def upload():
+    """
+    Uploads image to AWS
+    """
+    body = json.loads(request.data)
+    image_data = body.get("image_data")
+
+    if image_data is None:
+        return failure_response("No base64 image found")
+    
+    asset = Asset(image_data=image_data)
+    db.session.add(asset)
+    db.session.commit()
+
+    return success_response(asset.serialize(), 201)
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000, debug=True)
