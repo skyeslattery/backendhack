@@ -5,6 +5,10 @@ from flask import Flask, request
 import json
 from db import Asset
 import os
+import tensorflow as tf
+import tensorflow_hub as hub
+import numpy as np
+from difflib import SequenceMatcher # for simple search
 
 app = Flask(__name__)
 db_filename = "foundit.db"
@@ -119,6 +123,90 @@ def create_post(user_id):
     db.session.commit()
 
     return success_response(new_post.serialize(), 201)
+
+@app.route("/api/posts/search/", methods=["POST"])
+def search_posts():
+    #Simple Search
+    body = json.loads(request.data)
+    description = body.get("description")
+    status = body.get("is_found")
+    if status:
+        related_posts = Post.query.filter_by(is_found=False).all()
+    else:
+        related_posts = Post.query.filter_by(is_found=True).all()
+    matches = []
+    for post in related_posts:
+        if similar(description, post.description) > 0.5:
+            matches.append(post.serialize())
+    return success_response(matches)
+        
+    
+def similar(a, b):
+    return SequenceMatcher(None, a, b).ratio()
+
+@app.route("/api/posts/match/", methods=["POST"])
+def match_posts():
+    #Cross Search
+    module_url = "https://tfhub.dev/google/universal-sentence-encoder/4" 
+    model = hub.load(module_url)
+
+    body = json.loads(request.data)
+    is_found = body.get('is_found')
+    lost_posts = Post.query.filter(Post.is_found != is_found).all()
+
+    doc = [post.description for post in lost_posts]
+    bank_vec = model(doc)
+
+    query_description = body.get('description')
+    query_vec = model([query_description])
+
+    correlation = np.transpose(np.inner(query_vec, bank_vec))
+    top_posts = np.argmax(correlation, axis=1)
+
+    matches = []
+
+    for post in top_posts:
+        if(correlation[post] > 0.5):
+            match = lost_posts[post]
+            matches.append(match.serialize())
+
+    if(len(matches)>0):
+        return success_response(matches)
+    else:
+        return failure_response("No matching posts found", 200)
+    
+
+    # Version 1:
+    # correlation = np.transpose(np.inner(query_vec, bank_vec))
+    # first_similar = np.argmax(correlation, axis=0)[0]
+    # second_similar = np.argmax(correlation, axis=0)[1]
+    # third_similar = np.argmax(correlation, axis=0)[2]
+    # if correlation[first_similar] > 0.5:
+    #     if correlation[second_similar] > 0.5:
+    #         if correlation[third_similar] > 0.5:
+    #             suggested_post = lost_posts[first_similar, second_similar, third_similar]
+    #             return success_response({"message": "Here are some suggested posts that matches your lost item", "suggested_post": suggested_post})
+    #         suggested_post = lost_posts[first_similar, second_similar]
+    #         return success_response({"message": "Here are some suggested posts that matches your lost item", "suggested_post": suggested_post})
+    #     suggested_post = lost_posts[first_similar]
+    #     return success_response({"message": "Here are some suggested posts that matches your lost item", "suggested_post": suggested_post})
+    # else:
+    #     return failure_response({"message": "No matching posts found"})
+
+    # Version 2:
+    # module_url = "https://tfhub.dev/google/universal-sentence-encoder/4" 
+    # model = hub.load(module_url)
+    # lost_posts = [Post.objects.filter(is_found=not is_found)] #change logic
+    # doc = [lost_posts.description] # a list of descriptions
+    # bank_vec = model(doc)
+    # query = [description]
+    # query_vec = model(query)
+    # correlation = np.transpose(np.inner(query_vec,bank_vec))
+    # location_of_top_similarly = doc[np.argmax(correlation, axis=0)[0]]
+    # lost_posts[location_of_top_similarly]
+    # if correlation > 0.5:
+    #     return "here is a suggested post that matches your lost item" + lost_posts
+
 
 @app.route("/api/users/<int:user_id>/")
 def get_user(user_id):
