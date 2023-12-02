@@ -151,10 +151,13 @@ def match_posts():
     model = hub.load(module_url)
 
     body = json.loads(request.data)
-    is_found = body.get('is_found')
-    lost_posts = Post.query.filter(Post.is_found != is_found).all()
+    status = body.get('is_found')
+    if status:
+        related_posts = Post.query.filter_by(is_found=True).all()
+    else:
+        related_posts = Post.query.filter_by(is_found=False).all()
 
-    doc = [post.description for post in lost_posts]
+    doc = [post.description for post in related_posts]
     bank_vec = model(doc)
 
     query_description = body.get('description')
@@ -167,7 +170,7 @@ def match_posts():
 
     for post in top_posts:
         if(correlation[post] > 0.5):
-            match = lost_posts[post]
+            match = related_posts[post]
             matches.append(match.serialize())
 
     if(len(matches)>0):
